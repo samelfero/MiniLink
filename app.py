@@ -1,45 +1,58 @@
 from flask import Flask, request, redirect
-import sqlite3
+import psycopg2
 import string, random
+import os
 
 app = Flask(__name__)
-DB_NAME = "minilink.db"
 
-# Inicializa o banco de dados
+# URL do banco Postgres (Render)
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgres://minilink_db_user:7EzUbTw8yZvf6sihPQDEByChsXckvMFU@dpg-d38976p5pdvs738d577g-a:5432/minilink_db"
+)
+
+# Inicializa o banco
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS links (
-            codigo TEXT PRIMARY KEY,
-            url_original TEXT NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS links (
+                codigo VARCHAR(10) PRIMARY KEY,
+                url_original TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Banco de dados inicializado com sucesso!")
+    except Exception as e:
+        print("Erro ao inicializar o banco:", e)
 
 # Gera código curto
 def gerar_codigo(tamanho=6):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
 
-# Inserir link no banco
+# Salvar link
 def salvar_link(codigo, url):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("INSERT INTO links (codigo, url_original) VALUES (?, ?)", (codigo, url))
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO links (codigo, url_original) VALUES (%s, %s)", (codigo, url))
     conn.commit()
+    cur.close()
     conn.close()
 
-# Buscar link no banco
+# Buscar link
 def buscar_link(codigo):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT url_original FROM links WHERE codigo = ?", (codigo,))
-    row = c.fetchone()
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT url_original FROM links WHERE codigo=%s", (codigo,))
+    row = cur.fetchone()
+    cur.close()
     conn.close()
     return row[0] if row else None
 
-# Inicializa DB ao iniciar o app
+# Inicializa DB
 init_db()
 
 @app.route("/", methods=["GET", "POST"])
